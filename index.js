@@ -8,7 +8,7 @@ import terminalImage from 'terminal-image';
 // const promptText = `A realistic and natural photo of a girl on a hill or mountain top watching the sunrise with her friend. In studio gibli style`;
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-
+import fs from 'fs';
 const args = yargs(hideBin(process.argv)).parse();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 import { generateFilename, saveFile } from './utils.js';
@@ -31,8 +31,8 @@ async function sendRequestToOpenAI({ promptText, imageSize = 'm' }) {
   );
 }
 function validateArgs() {
-  if (!args.p) {
-    throw new Error('Please provide a prompt');
+  if (!args.p && !args.file) {
+    throw new Error('Please provide a prompt or file');
   }
   if (args.s && !CONSTANTS.IMAGE_SIZE_MAP[args.s.toLowerCase()]) {
     throw new Error('Invalid option for size. Please use one of s,m,l');
@@ -40,6 +40,11 @@ function validateArgs() {
 }
 async function run() {
   validateArgs();
+  if (args.file) {
+    const prompts = extractPromptsFromFile(args.file);
+    console.log(prompts);
+    return;
+  }
   const spinner = ora({ text: `${chalk.blue('Generating image(s)...')}`, spinner: 'runner' }).start();
   //const img = await sendRequestToOpenAI({ promptText: args.p, imageSize: args?.s?.toLowerCase() });
   const img = {
@@ -62,6 +67,34 @@ async function run() {
       saveFile(fileName, response.data);
     }
   }
+}
+
+function extractPromptsFromFile(filePath) {
+  const fileContent = fs.readFileSync(filePath, 'utf8');
+  const prompts = [];
+  let currentPrompt = '';
+
+  for (const line of fileContent.split('\n')) {
+    if ((line.trim() === '[[leo-gi]]' || line.startsWith('[[leo-gi]]')) && currentPrompt === '') {
+      currentPrompt += line;
+      continue;
+    }
+
+    if (currentPrompt.length && line.trim() === '') {
+      prompts.push(currentPrompt);
+      currentPrompt = '';
+    }
+
+    if (currentPrompt.length) {
+      currentPrompt += line;
+    }
+  }
+
+  if (currentPrompt.trim() !== '') {
+    prompts.push(currentPrompt.trim());
+  }
+
+  return prompts;
 }
 
 run()
